@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv = "Content-Type" content = "text/html; charset=UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<title>Same game</title>
+</head>
+<body>
+<div class = "menu">
+<input type = "button" onClick = "newGame();draw()" value = "New game">
+Rows:
+<input type = "text" id = "rows" size = "2">
+Columns:
+<input type = "text" id = "columns" size = "2">
+Scores:
+<input type = "text" id = "scores" size = "2">
+</div>
+<canvas id = "field"></canvas>
+<script>
+const field = document.getElementById("field");
+const ctx = field.getContext("2d");
+const tileSize = 25;
+const gap = 0;
+let fieldTilesWidth = 10;
+let fieldTilesHeight = 5;
+const colors = ["green", "red", "blue", "yellow", "magenta", "cyan"];
+let colorIndexSet = new Array(fieldTilesWidth * fieldTilesHeight);
+let activeTiles = fieldTilesHeight * fieldTilesWidth;
+let scores = 0;
+
+function newGame() {
+	let inputRows = Math.abs(parseInt(document.getElementById("rows").value), 10);
+	let inputColumns = Math.abs(parseInt(document.getElementById("columns").value), 10);
+
+	if(inputRows > 5 && inputColumns > 5) {
+		fieldTilesHeight = inputRows;
+		fieldTilesWidth = inputColumns;
+	}
+
+	ctx.clearRect(0, 0, field.width, field.height);
+
+	scores = 0;
+	activeTiles = fieldTilesHeight * fieldTilesWidth;
+	
+	colorIndexSet = new Array(fieldTilesWidth * fieldTilesHeight);
+	
+	field.width = fieldTilesWidth * (tileSize + gap);
+	field.height = fieldTilesHeight * (tileSize + gap);	
+
+	for(var i = 0; i < activeTiles; i++) {
+		var color = Math.floor(Math.random() * colors.length);
+		colorIndexSet[i] = color;
+	}
+}
+
+function draw() {
+	document.getElementById("scores").value = scores;
+	for(var y = 0; y < fieldTilesHeight; y++) {
+		for(var x = 0; x < fieldTilesWidth; x++) {
+			var index = (y * fieldTilesWidth) + x;
+			if(colorIndexSet[index] != -1) {
+				ctx.fillStyle = colors[colorIndexSet[index]];
+				ctx.fillRect(gap + x * (tileSize + gap), gap + y * (tileSize + gap), tileSize, tileSize);
+			} else {
+				ctx.clearRect(gap + x * (tileSize + gap), gap + y * (tileSize + gap), tileSize, tileSize);
+			}
+		}
+	}
+}
+
+function nearAndEqual (tile, width, height) {
+	var near = new Array();
+	if(tile >= width) {
+		near.push(tile - width);
+	}
+	if(tile % width != width - 1) {
+		near.push(tile + 1);
+	}
+	if(Math.floor(tile / width) != height - 1) {
+		near.push(tile + width);
+	}
+	if(tile % width != 0) {
+		near.push(tile - 1);
+	}
+	return near;
+}
+
+(function () {
+	document.getElementById("rows").value = fieldTilesHeight;
+	document.getElementById("columns").value = fieldTilesWidth;
+})();
+
+newGame();
+draw();
+
+field.addEventListener("mousedown", function (event) {
+	var clientBound = field.getBoundingClientRect();
+	var rawX = event.clientX - clientBound.left;
+	var rawY = event.clientY - clientBound.top;
+	var miss = (((rawX - gap) % (tileSize + gap)) > tileSize || ((rawY - gap) % (tileSize + gap)) > tileSize);
+	if(!miss) {
+		var tileX = Math.floor((rawX - gap) / (tileSize + gap));
+		var tileY = Math.floor((rawY - gap) / (tileSize + gap));
+		var click = (fieldTilesWidth * tileY) + tileX;
+
+		if(colorIndexSet[click] != -1) {
+			var nearTiles = [click];
+
+			do {
+				var walk = false;
+
+				for(var near in nearTiles) {
+					var index = nearTiles[near];
+					var directions = [];
+
+					if(index >= fieldTilesWidth) {
+						directions.push(index - fieldTilesWidth);
+					}
+
+					if(index % fieldTilesWidth != fieldTilesWidth - 1) {
+						directions.push(index + 1);
+					}
+
+					if(Math.floor(index / fieldTilesWidth) != fieldTilesHeight - 1) {
+						directions.push(index + fieldTilesWidth);
+					}
+
+					if(index % fieldTilesWidth != 0) {
+						directions.push(index - 1);
+					}
+
+					for(var d in directions) {
+						if((colorIndexSet[directions[d]] == colorIndexSet[index]) &&
+							nearTiles.indexOf(directions[d]) == -1) {
+								nearTiles.push(directions[d]);
+								walk = true;
+						}
+					}
+				}
+			} while(walk);
+
+			if(nearTiles.length > 1) {
+				scores += (nearTiles.length - 1) * colors.length;
+				activeTiles -= nearTiles.length;
+
+				nearTiles.sort(function(a, b) {
+					let columnDiff = (a % fieldTilesWidth) - (b % fieldTilesWidth);
+					let rowDiff = Math.floor(a / fieldTilesWidth) - Math.floor(b / fieldTilesWidth);
+					if(columnDiff == 0) {
+						return rowDiff;
+					} else {
+						return columnDiff;
+					}
+				});
+
+				for(var n in nearTiles) {
+					var iter = nearTiles[n];
+					for(var tempIter = iter; tempIter >= fieldTilesWidth; tempIter -= fieldTilesWidth) {
+						colorIndexSet[tempIter] = colorIndexSet[tempIter - fieldTilesWidth];
+					}
+					colorIndexSet[tempIter] = -1;
+				}
+
+				for(let i = (fieldTilesHeight - 1) * fieldTilesWidth; i < colorIndexSet.length - 1; i++) {
+					if(colorIndexSet[i] == -1) {
+						for(let row = i; row >= 0; row -= fieldTilesWidth) {
+							let col;
+							for(col = row; col < Math.ceil(row / fieldTilesWidth) * fieldTilesWidth - 1; col++) {
+								colorIndexSet[col] = colorIndexSet[col + 1];
+							}
+							colorIndexSet[col] = -1;
+						}
+					}
+				}
+
+				let gameOver = true;
+
+				for(let i = colorIndexSet.length - 1; i >= 0; i--) {
+					if(colorIndexSet[i] != -1) {
+						if(i >= fieldTilesWidth && colorIndexSet[i - fieldTilesWidth] == colorIndexSet[i]) {
+							gameOver = false; break;
+						}
+						if((i % fieldTilesWidth != fieldTilesWidth - 1) && colorIndexSet[i + 1] == colorIndexSet[i]) {
+							gameOver = false; break;
+						}
+						if((Math.floor(i / fieldTilesWidth) != fieldTilesHeight - 1) && colorIndexSet[i + fieldTilesWidth] == colorIndexSet[i]) {
+							gameOver = false; break;
+						}
+						if((i % fieldTilesWidth != 0) && colorIndexSet[i - 1] == colorIndexSet[i]) {
+							gameOver = false; break;
+						}
+					}
+				}
+
+				draw();
+
+				if(gameOver) {
+					if(activeTiles > 0) {
+						alert("Game over. You loose!");
+					} else {
+						alert("Game over. You win!");
+					}
+				}
+			}
+		}
+	}
+});
+</script>
+</body>
+</html>
